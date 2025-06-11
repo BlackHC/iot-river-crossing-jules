@@ -12,16 +12,15 @@ class TestSolvers(unittest.TestCase):
 
     def test_bfs_solve_standard_3m_3c(self):
         # Standard 3 Missionaries, 3 Cannibals, boat capacity 2
-        # GameState defaults to initial_missionaries=3, initial_cannibals=3
-        initial_state = GameState(3, 3, True)
+        initial_state = GameState(3, 3, True, initial_missionaries=3, initial_cannibals=3, boat_capacity=2)
         solution_path = bfs_solve(initial_state)
 
-        self.assertIsNotNone(solution_path, "BFS should find a solution for (3,3)")
+        self.assertIsNotNone(solution_path, "BFS should find a solution for (3,3) with k=2")
         self.assertIsInstance(solution_path, list)
         self.assertTrue(all(isinstance(s, GameState) for s in solution_path))
 
         # Known optimal solution length is 12 states (11 moves)
-        self.assertEqual(len(solution_path), 12, "BFS solution for (3,3) should have 12 states")
+        self.assertEqual(len(solution_path), 12, "BFS solution for (3,3) with k=2 should have 12 states")
 
         # Check if first state is initial and last state is win state
         self.assertEqual(solution_path[0], initial_state)
@@ -29,61 +28,61 @@ class TestSolvers(unittest.TestCase):
 
         # Check path validity (all states in path must be valid)
         for state in solution_path:
-            self.assertTrue(state.is_valid(), f"State {state} in BFS path for (3,3) is invalid")
+            self.assertTrue(state.is_valid(), f"State {state} in BFS path for (3,3) with k=2 is invalid")
 
     def test_dfs_solve_standard_3m_3c(self):
-        initial_state = GameState(3, 3, True)
+        initial_state = GameState(3, 3, True, initial_missionaries=3, initial_cannibals=3, boat_capacity=2)
         solution_path = dfs_solve(initial_state)
 
-        self.assertIsNotNone(solution_path, "DFS should find a solution for (3,3)")
+        self.assertIsNotNone(solution_path, "DFS should find a solution for (3,3) with k=2")
         self.assertIsInstance(solution_path, list)
         self.assertTrue(all(isinstance(s, GameState) for s in solution_path))
 
         # DFS doesn't guarantee shortest path, so don't assert length unless specific seed/ordering
-        self.assertTrue(len(solution_path) >= 12, "DFS solution for (3,3) should have at least 12 states")
+        self.assertTrue(len(solution_path) >= 12, "DFS solution for (3,3) with k=2 should have at least 12 states")
 
         self.assertEqual(solution_path[0], initial_state)
         self.assertTrue(solution_path[-1].is_win())
 
         for state in solution_path:
-            self.assertTrue(state.is_valid(), f"State {state} in DFS path for (3,3) is invalid")
+            self.assertTrue(state.is_valid(), f"State {state} in DFS path for (3,3) with k=2 is invalid")
 
     def test_bfs_solve_2m_2c(self):
-        initial_state = GameState(2, 2, True, initial_missionaries=2, initial_cannibals=2)
+        initial_state = GameState(2, 2, True, initial_missionaries=2, initial_cannibals=2, boat_capacity=2)
         solution_path = bfs_solve(initial_state)
 
-        self.assertIsNotNone(solution_path, "BFS should find a solution for (2,2)")
+        self.assertIsNotNone(solution_path, "BFS should find a solution for (2,2) with k=2")
         self.assertIsInstance(solution_path, list)
         # Known optimal for 2M, 2C is 5 moves (6 states)
-        self.assertEqual(len(solution_path), 6, "BFS solution for (2,2) should have 6 states")
+        self.assertEqual(len(solution_path), 6, "BFS solution for (2,2) with k=2 should have 6 states")
         self.assertTrue(solution_path[-1].is_win())
         for state in solution_path:
-            self.assertTrue(state.is_valid(), f"State {state} in BFS path for (2,2) is invalid")
+            self.assertTrue(state.is_valid(), f"State {state} in BFS path for (2,2) with k=2 is invalid")
 
     def test_dfs_solve_2m_2c(self):
-        initial_state = GameState(2, 2, True, initial_missionaries=2, initial_cannibals=2)
+        initial_state = GameState(2, 2, True, initial_missionaries=2, initial_cannibals=2, boat_capacity=2)
         solution_path = dfs_solve(initial_state)
-        self.assertIsNotNone(solution_path, "DFS should find a solution for (2,2)")
+        self.assertIsNotNone(solution_path, "DFS should find a solution for (2,2) with k=2")
         self.assertIsInstance(solution_path, list)
-        self.assertTrue(len(solution_path) >= 6) # DFS path length for (2,2)
+        self.assertTrue(len(solution_path) >= 6) # DFS path length for (2,2) with k=2
         self.assertTrue(solution_path[-1].is_win())
         for state in solution_path:
-            self.assertTrue(state.is_valid(), f"State {state} in DFS path for (2,2) is invalid")
+            self.assertTrue(state.is_valid(), f"State {state} in DFS path for (2,2) with k=2 is invalid")
 
     def test_solvers_unsolvable_4m_4c(self):
         # 4M, 4C, k=2 is known to be unsolvable
-        initial_state = GameState(4, 4, True, initial_missionaries=4, initial_cannibals=4)
+        initial_state = GameState(4, 4, True, initial_missionaries=4, initial_cannibals=4, boat_capacity=2)
 
         bfs_solution = bfs_solve(initial_state)
-        self.assertIsNone(bfs_solution, "BFS should return None for unsolvable (4,4) case")
+        self.assertIsNone(bfs_solution, "BFS should return None for unsolvable (4,4) k=2 case")
 
         dfs_solution = dfs_solve(initial_state)
-        self.assertIsNone(dfs_solution, "DFS should return None for unsolvable (4,4) case")
+        self.assertIsNone(dfs_solution, "DFS should return None for unsolvable (4,4) k=2 case")
 
     def test_solvers_already_solved_state(self):
         # Initial state is already the winning state
-        # (0M, 0C, Boat Right) for a (3M,3C) game.
-        initial_state = GameState(0, 0, False, initial_missionaries=3, initial_cannibals=3)
+        # (0M, 0C, Boat Right) for a (3M,3C) game with k=2.
+        initial_state = GameState(0, 0, False, initial_missionaries=3, initial_cannibals=3, boat_capacity=2)
         self.assertTrue(initial_state.is_win())
 
         bfs_solution = bfs_solve(initial_state)
@@ -97,15 +96,80 @@ class TestSolvers(unittest.TestCase):
         self.assertEqual(dfs_solution[0], initial_state)
 
     def test_solvers_invalid_initial_state(self):
-        # Initial state where missionaries are outnumbered (1M, 2C on left)
-        initial_state = GameState(1, 2, True, initial_missionaries=3, initial_cannibals=3)
+        # Initial state where missionaries are outnumbered (1M, 2C on left) for (3,3,k=2) game
+        initial_state = GameState(1, 2, True, initial_missionaries=3, initial_cannibals=3, boat_capacity=2)
         self.assertFalse(initial_state.is_valid()) # Ensure it's actually invalid for test setup
 
         bfs_solution = bfs_solve(initial_state)
-        self.assertIsNone(bfs_solution, "BFS should return None for an invalid initial state")
+        self.assertIsNone(bfs_solution, "BFS should return None for an invalid initial state (k=2)")
 
         dfs_solution = dfs_solve(initial_state)
-        self.assertIsNone(dfs_solution, "DFS should return None for an invalid initial state")
+        self.assertIsNone(dfs_solution, "DFS should return None for an invalid initial state (k=2)")
+
+    def test_bfs_solve_3m_3c_k3_solvable(self): # Renamed for clarity
+        # Standard 3 Missionaries, 3 Cannibals, boat capacity 3
+        # This should be solvable and likely faster than k=2
+        initial_state = GameState(3, 3, True, initial_missionaries=3, initial_cannibals=3, boat_capacity=3)
+        solution_path = bfs_solve(initial_state)
+
+        self.assertIsNotNone(solution_path, "BFS should find a solution for (3,3) with k=3")
+        self.assertIsInstance(solution_path, list)
+        # Path length for k=3 is typically 6 or 8 states (5 or 7 moves).
+        # Exact length can vary based on tie-breaking in BFS if multiple shortest paths exist.
+        # We know it must be less than 12 (the k=2 solution length).
+        self.assertTrue(len(solution_path) < 12, f"BFS solution for (3,3) k=3 should be <12 states, got {len(solution_path)}")
+        self.assertTrue(len(solution_path) > 1, "BFS solution for (3,3) k=3 should have >1 state")
+
+        self.assertEqual(solution_path[0], initial_state)
+        self.assertTrue(solution_path[-1].is_win())
+        for state in solution_path:
+            self.assertTrue(state.is_valid(), f"State {state} in BFS path for (3,3) k=3 is invalid")
+
+    def test_solvers_3m_3c_k1_unsolvable(self):
+        # 3M, 3C, k=1 should be unsolvable
+        initial_state = GameState(3, 3, True, initial_missionaries=3, initial_cannibals=3, boat_capacity=1)
+
+        bfs_solution = bfs_solve(initial_state)
+        self.assertIsNone(bfs_solution, "BFS should return None for (3,3) k=1 (unsolvable)")
+
+        dfs_solution = dfs_solve(initial_state)
+        self.assertIsNone(dfs_solution, "DFS should return None for (3,3) k=1 (unsolvable)")
+
+    def test_solvers_1m_1c_k1_solvable(self):
+        # 1M, 1C, k=1 is solvable in 4 moves (5 states).
+        # Path: (1,1,L) -> M_R -> (0,1,R) -> M_L -> (1,1,L) -> C_R -> (1,0,R) -> M_R -> (0,0,R) WIN.
+        # Oh, the path M_R, M_L, C_R, M_R is actually:
+        # 1. (1,1,L, k=1) Initial
+        # 2. (0,1,R, k=1) (Action: M L->R)
+        # 3. (1,1,L, k=1) (Action: M R->L)
+        # 4. (1,0,R, k=1) (Action: C L->R)
+        # 5. (0,0,R, k=1) (Action: M L->R) WIN!
+        initial_state = GameState(1, 1, True, initial_missionaries=1, initial_cannibals=1, boat_capacity=1)
+        expected_win_state = GameState(0,0,False, initial_missionaries=1, initial_cannibals=1, boat_capacity=1)
+
+        # BFS Test
+        bfs_solution = bfs_solve(initial_state)
+        self.assertIsNotNone(bfs_solution, "BFS should find a solution for (1,1) k=1")
+        if bfs_solution: # Proceed if solution found
+            self.assertEqual(len(bfs_solution), 5,
+                             f"BFS solution for (1,1) k=1 should have 5 states. Got: {[str(s) for s in bfs_solution]}")
+            self.assertEqual(bfs_solution[0], initial_state, "BFS path does not start with initial state.")
+            self.assertEqual(bfs_solution[-1], expected_win_state, "BFS path does not end with winning state.")
+            for state in bfs_solution:
+                 self.assertTrue(state.is_valid(), f"State {state} in BFS path for (1,1) k=1 is invalid")
+
+        # DFS Test
+        dfs_solution = dfs_solve(initial_state)
+        self.assertIsNotNone(dfs_solution, "DFS should find a solution for (1,1) k=1")
+        if dfs_solution: # Proceed if solution found
+             # DFS doesn't guarantee shortest path, but for (1,1,k=1) it's likely to find the short one or one not much longer.
+            self.assertTrue(len(dfs_solution) >= 5,
+                            f"DFS solution for (1,1) k=1 should have at least 5 states. Got: {len(dfs_solution)}")
+            self.assertEqual(dfs_solution[0], initial_state, "DFS path does not start with initial state.")
+            self.assertEqual(dfs_solution[-1], expected_win_state, "DFS path does not end with winning state.")
+            for state in dfs_solution:
+                 self.assertTrue(state.is_valid(), f"State {state} in DFS path for (1,1) k=1 is invalid")
+
 
 if __name__ == '__main__':
     unittest.main()

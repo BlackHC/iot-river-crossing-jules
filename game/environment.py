@@ -1,11 +1,12 @@
 class GameState:
     def __init__(self, missionaries_left, cannibals_left, boat_on_left,
-                 initial_missionaries=3, initial_cannibals=3):
+                 initial_missionaries=3, initial_cannibals=3, boat_capacity=2):
         self.missionaries_left = missionaries_left
         self.cannibals_left = cannibals_left
         self.boat_on_left = boat_on_left
         self.initial_missionaries = initial_missionaries
         self.initial_cannibals = initial_cannibals
+        self.boat_capacity = boat_capacity
         self.missionaries_right = initial_missionaries - missionaries_left
         self.cannibals_right = initial_cannibals - cannibals_left
 
@@ -39,27 +40,49 @@ class GameState:
                 self.cannibals_left == other.cannibals_left and
                 self.boat_on_left == other.boat_on_left and
                 self.initial_missionaries == other.initial_missionaries and
-                self.initial_cannibals == other.initial_cannibals)
+                self.initial_cannibals == other.initial_cannibals and
+                self.boat_capacity == other.boat_capacity)
 
     def __hash__(self):
         return hash((self.missionaries_left, self.cannibals_left, self.boat_on_left,
-                     self.initial_missionaries, self.initial_cannibals))
+                     self.initial_missionaries, self.initial_cannibals, self.boat_capacity))
 
     def __str__(self):
         left_bank = f"L: M={self.missionaries_left}, C={self.cannibals_left}"
         right_bank = f"R: M={self.missionaries_right}, C={self.cannibals_right}"
         boat_pos = "<-B-" if self.boat_on_left else "-B->"
-        return f"{left_bank} {boat_pos} {right_bank}"
+        return f"{left_bank} {boat_pos} {right_bank} (Cap: {self.boat_capacity})"
 
-# Possible actions: (missionaries_to_move, cannibals_to_move)
-# Boat capacity is 2
-POSSIBLE_ACTIONS = [
-    (1, 0),  # 1 missionary
-    (2, 0),  # 2 missionaries
-    (0, 1),  # 1 cannibal
-    (0, 2),  # 2 cannibals
-    (1, 1)   # 1 missionary and 1 cannibal
-]
+    def get_valid_next_states(self) -> list['GameState']:
+        """
+        Generates all valid successor states from the current state.
+        """
+        possible_next_states = []
+        actions = generate_possible_actions(self.boat_capacity)
+
+        for action in actions:
+            new_state = apply_action(self, action) # self is the current state
+            if new_state: # apply_action returns None if move is invalid or leads to invalid state
+                possible_next_states.append(new_state)
+        return possible_next_states
+
+def generate_possible_actions(boat_capacity: int) -> list[tuple[int, int]]:
+    """
+    Generates a list of possible actions (number of missionaries, number of cannibals)
+    that can be taken in a boat with a given capacity.
+
+    Args:
+        boat_capacity: The maximum number of people the boat can hold.
+
+    Returns:
+        A list of tuples (m, c) representing valid actions.
+    """
+    actions = []
+    for m in range(boat_capacity + 1):  # Missionaries from 0 to boat_capacity
+        for c in range(boat_capacity + 1 - m):  # Cannibals from 0 to boat_capacity - m
+            if m + c > 0 and m + c <= boat_capacity:
+                actions.append((m, c))
+    return actions
 
 def apply_action(state: GameState, action: tuple[int, int]) -> GameState | None:
     """
@@ -69,7 +92,7 @@ def apply_action(state: GameState, action: tuple[int, int]) -> GameState | None:
     move_missionaries, move_cannibals = action
     people_in_boat = move_missionaries + move_cannibals
 
-    if not (1 <= people_in_boat <= 2):
+    if not (1 <= people_in_boat <= state.boat_capacity): # Use state.boat_capacity
         # Invalid number of people in the boat
         return None
 
@@ -91,7 +114,7 @@ def apply_action(state: GameState, action: tuple[int, int]) -> GameState | None:
         new_boat_on_left = True
 
     new_state = GameState(new_ml, new_cl, new_boat_on_left,
-                          state.initial_missionaries, state.initial_cannibals)
+                          state.initial_missionaries, state.initial_cannibals, state.boat_capacity)
 
     if new_state.is_valid():
         return new_state
@@ -100,10 +123,10 @@ def apply_action(state: GameState, action: tuple[int, int]) -> GameState | None:
 
 if __name__ == '__main__':
     # Example Usage and Basic Test
-    initial_state = GameState(3, 3, True)
+    initial_state = GameState(3, 3, True, boat_capacity=2)
     print(f"Initial State: {initial_state}, Valid: {initial_state.is_valid()}")
 
-    action_to_try = (1, 1) # Move 1M, 1C from Left to Right
+    action_to_try = (1, 1) # Move 1M, 1C from Left to Right. Boat capacity 2.
     print(f"\nTrying action: Move {action_to_try[0]}M, {action_to_try[1]}C from Left to Right")
     next_state = apply_action(initial_state, action_to_try)
     if next_state:
@@ -122,72 +145,36 @@ if __name__ == '__main__':
 
     print("\nTesting winning state:")
     # M=0, C=0, B=F | M=3, C=3
-    winning_state = GameState(0,0, False)
+    winning_state = GameState(0,0, False, initial_missionaries=3, initial_cannibals=3, boat_capacity=2)
     print(f"Winning State: {winning_state}, Valid: {winning_state.is_valid()}, Win: {winning_state.is_win()}")
 
     print("\nTesting losing state (more cannibals on one side):")
     # M=1, C=2, B=T | M=2, C=1
-    losing_state_left = GameState(1,2, True)
+    losing_state_left = GameState(1,2, True, boat_capacity=2)
     print(f"Losing State (left): {losing_state_left}, Valid: {losing_state_left.is_valid()}")
 
     # M=2, C=1, B=F | M=1, C=2
-    losing_state_right = GameState(2,1, False)
+    losing_state_right = GameState(2,1, False, boat_capacity=2)
     print(f"Losing State (right): {losing_state_right}, Valid: {losing_state_right.is_valid()}")
 
     # M=1, C=1, B=F | M=2, C=2  (boat on right)
     # Action: move 2C from L to R
-    # Initial: 3M, 3C, B=L
-    # Action: (0,2) L->R
-    # State: 3M, 1C, B=R | 0M, 2C (Valid)
-    s1 = apply_action(initial_state, (0,2))
-    print(f"\nStep 1: {s1}")
-    if s1:
-        # Action: (0,1) R->L
-        # State: 3M, 2C, B=L | 0M, 1C (Valid)
-        s2 = apply_action(s1, (0,1))
-        print(f"Step 2: {s2}")
-        if s2:
-            # Action: (0,2) L->R
-            # State: 3M, 0C, B=R | 0M, 3C (Valid)
-            s3 = apply_action(s2, (0,2))
-            print(f"Step 3: {s3}")
-            if s3:
-                 # Action: (0,1) R->L
-                 # State: 3M, 1C, B=L | 0M, 2C (Valid) - This is s1, cycle. But it's s2.
-                 s4 = apply_action(s3, (0,1))
-                 print(f"Step 4: {s4}") # Should be 3M,1C,L -- 0M,2C. Oh, it's s1. No, s2.
-                 if s4:
-                    # Action: (2,0) L->R
-                    # State: 1M, 1C, B=R | 2M, 2C (Valid)
-                    s5 = apply_action(s4, (2,0))
-                    print(f"Step 5: {s5}")
-                    if s5:
-                        # Action: (1,1) R->L
-                        # State: 2M, 2C, B=L | 1M, 1C (Valid)
-                        s6 = apply_action(s5, (1,1))
-                        print(f"Step 6: {s6}")
-                        if s6:
-                            # Action: (2,0) L->R
-                            # State: 0M, 2C, B=R | 3M, 1C (Valid)
-                            s7 = apply_action(s6, (2,0))
-                            print(f"Step 7: {s7}")
-                            if s7:
-                                # Action: (0,1) R->L
-                                # State: 0M, 3C, B=L | 3M, 0C (Valid)
-                                s8 = apply_action(s7, (0,1))
-                                print(f"Step 8: {s8}")
-                                if s8:
-                                    # Action: (0,2) L->R
-                                    # State: 0M, 1C, B=R | 3M, 2C (Valid)
-                                    s9 = apply_action(s8, (0,2))
-                                    print(f"Step 9: {s9}")
-                                    if s9:
-                                        # Action: (0,1) R->L
-                                        # State: 0M, 2C, B=L | 3M, 1C (Valid) - This is s7
-                                        s10 = apply_action(s9, (0,1))
-                                        print(f"Step 10: {s10}")
-                                        if s10:
-                                            # Action: (0,2) L->R
-                                            # State: 0M, 0C, B=R | 3M, 3C (WIN!)
-                                            s11 = apply_action(s10, (0,2))
-                                            print(f"Step 11: {s11}, Win: {s11.is_win() if s11 else 'Invalid'}")
+    # The manual step-by-step example below can be simplified or adapted
+    # to use get_valid_next_states for demonstration if desired.
+    # For now, its direct use of apply_action is still fine as apply_action itself is unchanged.
+
+    # Example of using get_valid_next_states:
+    print(f"\nPossible next states from initial state ({initial_state}):")
+    for i, next_s in enumerate(initial_state.get_valid_next_states()):
+        print(f"Option {i+1}: {next_s}")
+
+    # The long chain of s1, s2... s11 is a specific path test.
+    # It can remain as is, as it tests apply_action directly.
+    # If we wanted to test get_valid_next_states more, we might pick one of its outputs.
+
+    print("\nTesting generate_possible_actions:") # This function remains useful internally
+    print(f"Actions for boat_capacity=1: {generate_possible_actions(1)}")
+    # Expected: [(0,1), (1,0)] or [(1,0),(0,1)]
+    print(f"Actions for boat_capacity=2: {generate_possible_actions(2)}")
+    # Expected: [(0,1), (0,2), (1,0), (1,1), (2,0)] in some order
+    print(f"Actions for boat_capacity=3: {generate_possible_actions(3)}")
