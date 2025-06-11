@@ -5,28 +5,20 @@ import os
 # Adjust path to import from parent directory's 'game' module
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from game.environment import GameState # apply_action and generate_possible_actions no longer needed here
+from game.environment import GameState # Only GameState is needed now
 
 def bfs_solve(initial_state: GameState) -> list[GameState] | None:
     """
-    Solves the Missionaries and Cannibals problem using Breadth-First Search.
-    BFS is guaranteed to find the shortest path in terms of the number of moves
-    because it explores the state space layer by layer, and each move has a
-    uniform cost (1 step).
-
-    Args:
-        initial_state: The starting state of the game.
-
-    Returns:
-        A list of GameState objects representing the path from the initial
-        state to a winning state, or None if no solution is found.
+    Solves a river crossing puzzle using Breadth-First Search.
+    Works for any GameState that implements get_valid_next_states(), is_win(), is_valid().
+    BFS is guaranteed to find the shortest path in terms of the number of moves.
     """
-    if not initial_state.is_valid():
+    if not initial_state.is_valid_state(): # Use the new method name
         return None
     if initial_state.is_win():
         return [initial_state]
 
-    queue = deque([(initial_state, [initial_state])])  # Store (state, path_to_state)
+    queue = deque([(initial_state, [initial_state])])
     visited_states = {initial_state}
 
     while queue:
@@ -35,7 +27,7 @@ def bfs_solve(initial_state: GameState) -> list[GameState] | None:
         possible_next_states = current_state.get_valid_next_states()
 
         for next_state in possible_next_states:
-            if next_state not in visited_states: # Check visited before further processing
+            if next_state not in visited_states:
                 new_path = current_path + [next_state]
                 if next_state.is_win():
                     return new_path
@@ -43,181 +35,160 @@ def bfs_solve(initial_state: GameState) -> list[GameState] | None:
                 visited_states.add(next_state)
                 queue.append((next_state, new_path))
 
-    return None # No solution found
+    return None
 
 def dfs_solve(initial_state: GameState) -> list[GameState] | None:
     """
-    Solves the Missionaries and Cannibals problem using Depth-First Search (iterative).
-
-    Args:
-        initial_state: The starting state of the game.
-
-    Returns:
-        A list of GameState objects representing the path from the initial
-        state to a winning state, or None if no solution is found.
+    Solves a river crossing puzzle using Depth-First Search (iterative).
+    Works for any GameState that implements get_valid_next_states(), is_win(), is_valid().
     """
-    if not initial_state.is_valid():
+    if not initial_state.is_valid_state(): # Use the new method name
         return None
     if initial_state.is_win():
         return [initial_state]
 
-    # Using a list as a stack: (state, path_to_state)
     stack = [(initial_state, [initial_state])]
     visited_states = {initial_state}
 
     while stack:
         current_state, current_path = stack.pop()
-
         possible_next_states = current_state.get_valid_next_states()
 
-        # Explore neighbors (in reverse for stack to maintain similar order to old POSSIBlE_ACTIONS if desired, though not critical)
-        # For DFS, the order of exploring children can affect the first solution found.
-        # Original POSSIBLE_ACTIONS was [(1,0),(2,0),(0,1),(0,2),(1,1)].
-        # get_valid_next_states order depends on generate_possible_actions.
-        # If specific DFS path is desired for consistency with old tests, may need to reverse possible_next_states.
-        # However, any valid path is acceptable for DFS.
-        for next_state in possible_next_states: # Or reversed(possible_next_states)
+        for next_state in possible_next_states:
             if next_state not in visited_states:
                 new_path = current_path + [next_state]
                 if next_state.is_win():
                     return new_path
 
-                visited_states.add(next_state) # Mark visited before adding to stack
+                visited_states.add(next_state)
                 stack.append((next_state, new_path))
-            # No explicit check for "next_state in visited_states" here,
-            # as it's handled by the "if next_state not in visited_states"
-            # and standard DFS doesn't typically re-evaluate paths to already visited states.
 
-    return None # No solution found
+    return None
+
+def format_actor_agent_path(path: list[GameState]) -> list[list[str]]:
+    """
+    Formats a solution path (list of GameState objects) for the Actor-Agent puzzle
+    into a list of moves, where each move is represented by a sorted list of
+    individuals on the boat.
+    """
+    if not path or len(path) < 2:
+        return []
+
+    formatted_moves = []
+    for i in range(len(path) - 1):
+        current_state = path[i]
+        next_state = path[i+1]
+
+        boat_occupants: set[str]
+        if current_state.boat_on_left: # Boat moved L -> R
+            boat_occupants = current_state.left_bank.difference(next_state.left_bank)
+        else: # Boat moved R -> L
+            boat_occupants = current_state.right_bank.difference(next_state.right_bank)
+
+        # Sort alphabetically for consistent output order.
+        # Example: "A1", "a1" if both were on boat.
+        sorted_occupants = sorted(list(boat_occupants))
+        formatted_moves.append(sorted_occupants)
+
+    return formatted_moves
 
 if __name__ == '__main__':
-    # Test the solvers
-    # Standard game: 3 Missionaries, 3 Cannibals, Boat Capacity 2
-    start_state = GameState(3, 3, True, initial_missionaries=3, initial_cannibals=3, boat_capacity=2)
+    print("Actor-Agent Puzzle Solver Tests")
+    print("="*40)
 
-    print("Attempting BFS solver...")
-    bfs_solution_path = bfs_solve(start_state)
+    # Test Case 1: N=2, K=2 (Solvable, known solution is 5 moves / 6 states)
+    print("\n--- Testing N=2, K=2 (Solvable) ---")
+    initial_state_n2_k2 = GameState(N=2, boat_capacity=2)
+    print(f"Initial State: {initial_state_n2_k2}")
 
-    if bfs_solution_path:
-        print("BFS Solution Found:")
-        for i, state in enumerate(bfs_solution_path):
-            print(f"Step {i}: {state}")
-        # The path includes the initial state, so #moves = path_length - 1
-        # Known optimal for 3M, 3C, boat_cap=2 is 11 moves. So path length is 12.
-        expected_optimal_length = 12
-        if start_state.initial_missionaries == 3 and start_state.initial_cannibals == 3:
-            assert len(bfs_solution_path) == expected_optimal_length, \
-                f"BFS solution length {len(bfs_solution_path)} does not match known optimal of {expected_optimal_length} states."
-            print(f"\nBFS solution for (3M,3C) has {len(bfs_solution_path)-1} moves, which is the known optimal.")
+    print("\nAttempting BFS for N=2, K=2...")
+    bfs_solution_n2_k2 = bfs_solve(initial_state_n2_k2)
+    if bfs_solution_n2_k2:
+        print(f"BFS Solution Found for N=2, K=2 ({len(bfs_solution_n2_k2)-1} moves):")
+        # for i, state in enumerate(bfs_solution_n2_k2):
+        #     print(f"Step {i}: {state}")
+
+        formatted_bfs_moves = format_actor_agent_path(bfs_solution_n2_k2)
+        print(f"Formatted BFS Moves: {formatted_bfs_moves}")
+        # Expected paper example: [["A_2", "a_2"], ["A_2"], ["A_1", "A_2"], ["A_1"], ["A_1", "a_1"]]
+        # My sorting will be alphabetical: e.g., ["A2", "a2"] or ["A1", "A2"] or ["A1", "a1"]
+        # The paper uses _ my code uses no underscore. Let's adapt expected to my format.
+        expected_moves_n2_k2_paper_adapted = [
+            sorted(["A2", "a2"]), # (a2,A2)R
+            sorted(["A2"]),       # (A2)L
+            sorted(["A1", "A2"]), # (A1,A2)R
+            sorted(["A1"]),       # (A1)L
+            sorted(["A1", "a1"])  # (a1,A1)R
+        ]
+        # Note: The exact set of individuals might differ if multiple paths of same length exist.
+        # The key is the length for BFS.
+        assert len(formatted_bfs_moves) == 5, "BFS N=2,K=2: Expected 5 moves."
+        if formatted_bfs_moves == expected_moves_n2_k2_paper_adapted:
+            print("BFS N=2,K=2 path matches adapted paper example.")
+        else:
+            print(f"BFS N=2,K=2 path does not exactly match adapted paper example. Expected: {expected_moves_n2_k2_paper_adapted}")
+
+        expected_len_n2_k2_states = 6
+        assert len(bfs_solution_n2_k2) == expected_len_n2_k2_states, \
+            f"BFS N=2,K=2: Expected {expected_len_n2_k2_states} states, got {len(bfs_solution_n2_k2)}"
+        print(f"BFS path length for N=2, K=2 is {len(bfs_solution_n2_k2)} states, which is the expected optimal.")
+
     else:
-        print("No solution found by BFS.")
+        print("BFS: No solution found for N=2, K=2.")
 
-    print("\n" + "="*30 + "\n")
-
-    print("Attempting DFS solver...")
-    # For DFS, to prevent extremely long non-optimal paths,
-    # re-initialize visited_states if you run it after BFS on the same start_state object
-    # or ensure GameState's hash/eq are robust if it were mutable (it's not currently).
-    # Since visited_states is local to each function, this is fine.
-    dfs_solution_path = dfs_solve(start_state)
-
-    if dfs_solution_path:
-        print("DFS Solution Found:")
-        for i, state in enumerate(dfs_solution_path):
-            print(f"Step {i}: {state}")
+    print("\nAttempting DFS for N=2, K=2...")
+    dfs_solution_n2_k2 = dfs_solve(initial_state_n2_k2)
+    if dfs_solution_n2_k2:
+        print(f"DFS Solution Found for N=2, K=2 ({len(dfs_solution_n2_k2)-1} moves).")
+        formatted_dfs_moves = format_actor_agent_path(dfs_solution_n2_k2)
+        print(f"Formatted DFS Moves: {formatted_dfs_moves}")
+        print(f"DFS path length for N=2, K=2 is {len(dfs_solution_n2_k2)} states.")
     else:
-        print("No solution found by DFS.")
+        print("DFS: No solution found for N=2, K=2.")
 
-    # Test case: Already won state
-    print("\n" + "="*30 + "\n")
-    print("Testing already won state:")
-    won_state = GameState(0,0,False, initial_missionaries=3, initial_cannibals=3, boat_capacity=2)
-    print(f"Initial state: {won_state}, Is Win? {won_state.is_win()}")
-    bfs_won_path = bfs_solve(won_state)
-    if bfs_won_path:
-        print("BFS solution for won state:")
-        for s in bfs_won_path: print(s)
+    # Test Case 2: N=1, K=1 (Should be Unsolvable by current AA rules)
+    print("\n--- Testing N=1, K=1 (Unsolvable) ---")
+    initial_state_n1_k1 = GameState(N=1, boat_capacity=1)
+    print(f"Initial State: {initial_state_n1_k1}")
+
+    print("\nAttempting BFS for N=1, K=1...")
+    bfs_solution_n1_k1 = bfs_solve(initial_state_n1_k1)
+    if bfs_solution_n1_k1:
+        print(f"BFS Solution Found for N=1, K=1 ({len(bfs_solution_n1_k1)-1} moves) - THIS IS UNEXPECTED!")
+        formatted_n1_k1 = format_actor_agent_path(bfs_solution_n1_k1)
+        print(f"Formatted N1K1 Moves: {formatted_n1_k1}")
     else:
-        print("BFS: No solution for won state (error).")
+        print("BFS: No solution found for N=1, K=1 (as expected for strict AA rules).")
 
-    dfs_won_path = dfs_solve(won_state)
-    if dfs_won_path:
-        print("DFS solution for won state:")
-        for s in dfs_won_path: print(s)
+    # Test Case 3: Already solved state
+    print("\n--- Testing Already Solved State (N=1, K=1) ---")
+    solved_state_n1_k1 = GameState(N=1, boat_capacity=1, boat_on_left=False)
+    print(f"Initial State (already solved): {solved_state_n1_k1}")
+    assert solved_state_n1_k1.is_win(), "Constructed solved state is not a win state!"
+
+    bfs_solved_path = bfs_solve(solved_state_n1_k1)
+    if bfs_solved_path:
+        assert len(bfs_solved_path) == 1, "Path for already solved state should be 1"
+        print("BFS correctly found path of length 1 for already solved state.")
+        formatted_solved_moves = format_actor_agent_path(bfs_solved_path)
+        assert formatted_solved_moves == [], "Formatted moves for already solved state should be empty."
+        print("Formatted moves for already solved path is correctly empty.")
     else:
-        print("DFS: No solution for won state (error).")
+        print("BFS failed for already solved state.")
 
-    # Test case: Impossible state (e.g., more people than exist)
-    # GameState constructor would prevent this, apply_action would also.
-    # Let's test an invalid starting state that *can* be constructed.
-    print("\n" + "="*30 + "\n")
-    print("Testing invalid initial state (1M, 2C on left):")
-    # For a 3M, 3C game with boat_capacity=2
-    invalid_start_state = GameState(1,2,True, initial_missionaries=3, initial_cannibals=3, boat_capacity=2)
-    print(f"Initial state: {invalid_start_state}, Is Valid? {invalid_start_state.is_valid()}")
+    # Test Case 4: Invalid initial state (structurally)
+    print("\n--- Testing Invalid Initial State (N=1, K=1) ---")
+    invalid_initial_state = GameState(N=1, boat_capacity=1)
+    if invalid_initial_state.all_individuals:
+      person_to_remove = next(iter(invalid_initial_state.all_individuals))
+      if person_to_remove in invalid_initial_state.left_bank:
+          invalid_initial_state.left_bank.remove(person_to_remove)
+      # No need to check right bank for default init state
+    print(f"Initial State (corrupted): {invalid_initial_state}")
+    assert not invalid_initial_state.is_valid_state(), "Corrupted state was not invalid!"
 
-    bfs_invalid_path = bfs_solve(invalid_start_state)
+    bfs_invalid_path = bfs_solve(invalid_initial_state)
     if bfs_invalid_path is None:
-        print("BFS correctly returned None for invalid start.")
+        print("BFS correctly returned None for invalid initial state.")
     else:
-        print(f"BFS returned a path for invalid start (error): {bfs_invalid_path}")
-
-    dfs_invalid_path = dfs_solve(invalid_start_state)
-    if dfs_invalid_path is None:
-        print("DFS correctly returned None for invalid start.")
-    else:
-        print(f"DFS returned a path for invalid start (error): {dfs_invalid_path}")
-
-    # Test with different initial numbers (e.g. 2M, 2C)
-    # The known optimal for 2M, 2C, boat_cap=2 is 5 moves (path length 6)
-    print("\n" + "="*30 + "\n")
-    print("Attempting BFS solver for 2M, 2C, Boat Left (cap=2)...")
-    start_state_2m2c = GameState(2, 2, True, initial_missionaries=2, initial_cannibals=2, boat_capacity=2)
-    bfs_solution_path_2m2c = bfs_solve(start_state_2m2c)
-
-    if bfs_solution_path_2m2c:
-        print("BFS Solution Found for 2M, 2C:")
-        for i, state in enumerate(bfs_solution_path_2m2c):
-            print(f"Step {i}: {state}")
-        expected_optimal_length_2m2c = 6 # 5 moves
-        if start_state_2m2c.initial_missionaries == 2 and start_state_2m2c.initial_cannibals == 2 and start_state_2m2c.boat_capacity == 2:
-            assert len(bfs_solution_path_2m2c) == expected_optimal_length_2m2c, \
-                f"BFS solution length {len(bfs_solution_path_2m2c)} for (2M,2C) k=2 does not match known optimal of {expected_optimal_length_2m2c} states."
-            print(f"\nBFS solution for (2M,2C) k=2 has {len(bfs_solution_path_2m2c)-1} moves, which is the known optimal.")
-    else:
-        print("No solution found by BFS for 2M, 2C.")
-
-    print("\nAttempting DFS solver for 2M, 2C, Boat Left...")
-    # start_state_2m2c is already defined with cap=2
-    dfs_solution_path_2m2c = dfs_solve(start_state_2m2c)
-    if dfs_solution_path_2m2c:
-        print("DFS Solution Found for 2M, 2C:")
-        for i, state in enumerate(dfs_solution_path_2m2c):
-            print(f"Step {i}: {state}")
-    else:
-        print("No solution found by DFS for 2M, 2C.")
-
-    # Test an unsolvable scenario if one is easily constructible
-    # For M&C, standard (3,3) is solvable. (1,2) with boat cap 2 might be unsolvable
-    # if initial state is (1,2,L) -> move (0,1) -> (1,1,R) -> move (0,1) -> (1,2,L) ... cycle
-    # Or if only 1M, 1C and boat capacity 2.
-    # (1M, 1C, L) -> move (1,0) -> (0,1,R) -> cannot move back M or C alone without violating rules.
-    # -> move (1,1) -> (0,0,R) WIN. This is solvable.
-
-    # Consider an initial state that leads to no solution:
-    # Using the (1M,1C,L | initial_M=1, initial_C=2, boat_cap=2) example from before
-    print("\n" + "="*30 + "\n")
-    print("Attempting BFS for an unsolvable state (1M,1C,L where total M=1, C=2, cap=2):")
-    unsolvable_state = GameState(1,1,True, initial_missionaries=1, initial_cannibals=2, boat_capacity=2)
-    print(f"Initial state: {unsolvable_state}, Valid: {unsolvable_state.is_valid()}") # Should be valid
-    bfs_unsolvable = bfs_solve(unsolvable_state)
-    if bfs_unsolvable is None:
-        print("BFS correctly returned None for unsolvable state.")
-    else:
-        print(f"BFS returned a path for unsolvable state (error): {bfs_unsolvable}")
-
-    dfs_unsolvable = dfs_solve(unsolvable_state)
-    if dfs_unsolvable is None:
-        print("DFS correctly returned None for unsolvable state.")
-    else:
-        print(f"DFS returned a path for unsolvable state (error): {dfs_unsolvable}")
+        print("BFS returned a path for invalid initial state (error).")

@@ -1,180 +1,177 @@
-class GameState:
-    def __init__(self, missionaries_left, cannibals_left, boat_on_left,
-                 initial_missionaries=3, initial_cannibals=3, boat_capacity=2):
-        self.missionaries_left = missionaries_left
-        self.cannibals_left = cannibals_left
-        self.boat_on_left = boat_on_left
-        self.initial_missionaries = initial_missionaries
-        self.initial_cannibals = initial_cannibals
-        self.boat_capacity = boat_capacity
-        self.missionaries_right = initial_missionaries - missionaries_left
-        self.cannibals_right = initial_cannibals - cannibals_left
+import itertools
 
-    def is_valid(self):
-        """Checks if the current state is valid."""
-        # Rule 1: Missionaries are not outnumbered by cannibals on the left bank
-        if self.missionaries_left > 0 and self.missionaries_left < self.cannibals_left:
-            return False
-        # Rule 2: Missionaries are not outnumbered by cannibals on the right bank
-        if self.missionaries_right > 0 and self.missionaries_right < self.cannibals_right:
-            return False
-        # Rule 3: Number of missionaries and cannibals must be non-negative
-        if not (0 <= self.missionaries_left <= self.initial_missionaries and
-                0 <= self.cannibals_left <= self.initial_cannibals and
-                0 <= self.missionaries_right <= self.initial_missionaries and
-                0 <= self.cannibals_right <= self.initial_cannibals):
-            return False
+class GameState:
+    def __init__(self, N: int, boat_capacity: int,
+                 left_bank_individuals: set[str] | None = None,
+                 right_bank_individuals: set[str] | None = None,
+                 boat_on_left: bool = True):
+        self.N = N
+        self.boat_capacity = boat_capacity
+        self.boat_on_left = boat_on_left
+
+        self.actors = {f"a{i+1}" for i in range(N)}
+        self.agents = {f"A{i+1}" for i in range(N)}
+        self.all_individuals = self.actors.union(self.agents)
+
+        if left_bank_individuals is None and right_bank_individuals is None:
+            # Default initial setup
+            if boat_on_left:
+                self.left_bank = set(self.all_individuals)
+                self.right_bank = set()
+            else: # Typically used to construct a win state or specific scenario
+                self.left_bank = set()
+                self.right_bank = set(self.all_individuals)
+        elif left_bank_individuals is not None and right_bank_individuals is not None:
+            # Explicitly provided banks
+            self.left_bank = set(left_bank_individuals) # Ensure it's a copy
+            self.right_bank = set(right_bank_individuals) # Ensure it's a copy
+        else:
+            raise ValueError("Either both bank populations must be specified, or neither (for default initial setup).")
+
+    @staticmethod
+    def is_group_safe(group_individuals: set[str], all_actors_in_problem: set[str], all_agents_in_problem: set[str]) -> bool:
+        """
+        Checks if a group of individuals (on a bank or in a boat) is safe
+        according to Actor-Agent rules.
+        Rule: An actor (ax) can only be with other agents (Ay, Az) if its own agent (Ax) is also present.
+              If Ax is not present, ax cannot be with any Ay (y!=x).
+              If no actors are present, or only agents are present, it's safe by this rule.
+        """
+        actors_in_group = group_individuals.intersection(all_actors_in_problem)
+        agents_in_group = group_individuals.intersection(all_agents_in_problem)
+
+        if not actors_in_group: # No actors, so no violation possible by this rule
+            return True
+
+        for actor_id in actors_in_group: # e.g., "a1"
+            own_agent_id = "A" + actor_id[1:] # e.g., "A1"
+            if own_agent_id not in agents_in_group: # Actor's own agent is NOT present
+                # Check if any *other* agent is present
+                for other_agent_id in agents_in_group:
+                    # No need to check other_agent_id != own_agent_id, because own_agent_id is not in agents_in_group
+                    return False # Actor is with another agent, without its own agent present. Unsafe.
         return True
 
-    def is_win(self):
-        """Checks if all missionaries and cannibals are on the right bank."""
-        return self.missionaries_left == 0 and self.cannibals_left == 0 and \
-               self.missionaries_right == self.initial_missionaries and \
-               self.cannibals_right == self.initial_cannibals and \
-               not self.boat_on_left
+    def is_valid_state(self) -> bool:
+        """
+        Checks for overall state consistency and Actor-Agent safety rules on both banks.
+        """
+        # 1. Structural Validity Checks
+        on_left_and_right = self.left_bank.intersection(self.right_bank)
+        if len(on_left_and_right) > 0:
+            return False # Someone is on both banks
+
+        on_left_or_right = self.left_bank.union(self.right_bank)
+        if on_left_or_right != self.all_individuals:
+            return False # Some individuals are missing or extra individuals appeared
+
+        # 2. Actor-Agent Safety Rules for each bank
+        if not GameState.is_group_safe(self.left_bank, self.actors, self.agents):
+            return False # Left bank is unsafe
+        if not GameState.is_group_safe(self.right_bank, self.actors, self.agents):
+            return False # Right bank is unsafe
+
+        return True
+
+    def is_win(self) -> bool:
+        """Checks if all individuals are on the right bank and boat is also on right."""
+        if not self.is_valid_state():
+            return False
+        return len(self.left_bank) == 0 and not self.boat_on_left and \
+               len(self.right_bank) == 2 * self.N
+
 
     def __eq__(self, other):
         if not isinstance(other, GameState):
             return NotImplemented
-        return (self.missionaries_left == other.missionaries_left and
-                self.cannibals_left == other.cannibals_left and
+        return (self.left_bank == other.left_bank and
+                self.right_bank == other.right_bank and
                 self.boat_on_left == other.boat_on_left and
-                self.initial_missionaries == other.initial_missionaries and
-                self.initial_cannibals == other.initial_cannibals and
+                self.N == other.N and
                 self.boat_capacity == other.boat_capacity)
 
     def __hash__(self):
-        return hash((self.missionaries_left, self.cannibals_left, self.boat_on_left,
-                     self.initial_missionaries, self.initial_cannibals, self.boat_capacity))
+        return hash((frozenset(self.left_bank), frozenset(self.right_bank),
+                     self.boat_on_left, self.N, self.boat_capacity))
 
     def __str__(self):
-        left_bank = f"L: M={self.missionaries_left}, C={self.cannibals_left}"
-        right_bank = f"R: M={self.missionaries_right}, C={self.cannibals_right}"
-        boat_pos = "<-B-" if self.boat_on_left else "-B->"
-        return f"{left_bank} {boat_pos} {right_bank} (Cap: {self.boat_capacity})"
+        left_sorted = sorted(list(self.left_bank))
+        right_sorted = sorted(list(self.right_bank))
+        boat_pos_str = " L <--B-- R " if self.boat_on_left else " L --B--> R "
+        return f"Left: {left_sorted} {boat_pos_str} Right: {right_sorted} (N={self.N}, K={self.boat_capacity})"
 
     def get_valid_next_states(self) -> list['GameState']:
         """
-        Generates all valid successor states from the current state.
+        Generates all valid successor states from the current state for Actor-Agent puzzle.
         """
-        possible_next_states = []
-        actions = generate_possible_actions(self.boat_capacity)
+        valid_successors = []
+        source_bank = self.left_bank if self.boat_on_left else self.right_bank
 
-        for action in actions:
-            new_state = apply_action(self, action) # self is the current state
-            if new_state: # apply_action returns None if move is invalid or leads to invalid state
-                possible_next_states.append(new_state)
-        return possible_next_states
+        for k_boat in range(1, self.boat_capacity + 1): # Number of people in boat
+            for boat_occupants_tuple in itertools.combinations(source_bank, k_boat):
+                boat_occupants_set = set(boat_occupants_tuple)
 
-def generate_possible_actions(boat_capacity: int) -> list[tuple[int, int]]:
-    """
-    Generates a list of possible actions (number of missionaries, number of cannibals)
-    that can be taken in a boat with a given capacity.
+                # 1. Check boat safety
+                if not GameState.is_group_safe(boat_occupants_set, self.actors, self.agents):
+                    continue
 
-    Args:
-        boat_capacity: The maximum number of people the boat can hold.
+                # 2. Create potential new bank configurations
+                new_left_bank_set = set(self.left_bank)
+                new_right_bank_set = set(self.right_bank)
+                new_boat_on_left_val = not self.boat_on_left
 
-    Returns:
-        A list of tuples (m, c) representing valid actions.
-    """
-    actions = []
-    for m in range(boat_capacity + 1):  # Missionaries from 0 to boat_capacity
-        for c in range(boat_capacity + 1 - m):  # Cannibals from 0 to boat_capacity - m
-            if m + c > 0 and m + c <= boat_capacity:
-                actions.append((m, c))
-    return actions
+                if self.boat_on_left: # Moving L -> R
+                    new_left_bank_set -= boat_occupants_set
+                    new_right_bank_set.update(boat_occupants_set)
+                else: # Moving R -> L
+                    new_right_bank_set -= boat_occupants_set
+                    new_left_bank_set.update(boat_occupants_set)
 
-def apply_action(state: GameState, action: tuple[int, int]) -> GameState | None:
-    """
-    Applies an action to the current state and returns a new state.
-    Returns None if the action is invalid or results in an invalid state.
-    """
-    move_missionaries, move_cannibals = action
-    people_in_boat = move_missionaries + move_cannibals
+                # 3. Create and validate the new state
+                potential_next_state = GameState(N=self.N,
+                                                 boat_capacity=self.boat_capacity,
+                                                 left_bank_individuals=new_left_bank_set,
+                                                 right_bank_individuals=new_right_bank_set,
+                                                 boat_on_left=new_boat_on_left_val)
 
-    if not (1 <= people_in_boat <= state.boat_capacity): # Use state.boat_capacity
-        # Invalid number of people in the boat
-        return None
+                if potential_next_state.is_valid_state():
+                    valid_successors.append(potential_next_state)
 
-    if state.boat_on_left:
-        # Moving from left to right
-        if state.missionaries_left < move_missionaries or state.cannibals_left < move_cannibals:
-            return None # Not enough people on the left bank
+        return valid_successors
 
-        new_ml = state.missionaries_left - move_missionaries
-        new_cl = state.cannibals_left - move_cannibals
-        new_boat_on_left = False
-    else:
-        # Moving from right to left
-        if state.missionaries_right < move_missionaries or state.cannibals_right < move_cannibals:
-            return None # Not enough people on the right bank
-
-        new_ml = state.missionaries_left + move_missionaries
-        new_cl = state.cannibals_left + move_cannibals
-        new_boat_on_left = True
-
-    new_state = GameState(new_ml, new_cl, new_boat_on_left,
-                          state.initial_missionaries, state.initial_cannibals, state.boat_capacity)
-
-    if new_state.is_valid():
-        return new_state
-    else:
-        return None
+# Old M&C related functions are now fully removed.
 
 if __name__ == '__main__':
-    # Example Usage and Basic Test
-    initial_state = GameState(3, 3, True, boat_capacity=2)
-    print(f"Initial State: {initial_state}, Valid: {initial_state.is_valid()}")
+    print("Actor-Agent River Crossing Puzzle State Definition & Next States")
 
-    action_to_try = (1, 1) # Move 1M, 1C from Left to Right. Boat capacity 2.
-    print(f"\nTrying action: Move {action_to_try[0]}M, {action_to_try[1]}C from Left to Right")
-    next_state = apply_action(initial_state, action_to_try)
-    if next_state:
-        print(f"Next State: {next_state}, Valid: {next_state.is_valid()}, Win: {next_state.is_win()}")
-    else:
-        print("Action resulted in an invalid state or was not possible.")
+    # Initial state for N=2, K=2
+    initial_state_aa = GameState(N=2, boat_capacity=2)
+    print(f"\nInitial State (N=2, K=2): {initial_state_aa}")
+    print(f"Is valid: {initial_state_aa.is_valid_state()}")
+    print(f"Is win: {initial_state_aa.is_win()}")
 
-    if next_state:
-        action_to_try_back = (1,0) # Move 1M from Right to Left
-        print(f"\nTrying action: Move {action_to_try_back[0]}M, {action_to_try_back[1]}C from Right to Left")
-        state_after_return = apply_action(next_state, action_to_try_back)
-        if state_after_return:
-            print(f"State after return: {state_after_return}, Valid: {state_after_return.is_valid()}, Win: {state_after_return.is_win()}")
-        else:
-            print("Return action resulted in an invalid state or was not possible.")
+    # Manually construct a winning state for N=2, K=2
+    win_state_aa = GameState(N=2, boat_capacity=2, boat_on_left=False)
+    print(f"\nConstructed Winning State (N=2, K=2): {win_state_aa}")
+    print(f"Is valid: {win_state_aa.is_valid_state()}")
+    print(f"Is win: {win_state_aa.is_win()}")
 
-    print("\nTesting winning state:")
-    # M=0, C=0, B=F | M=3, C=3
-    winning_state = GameState(0,0, False, initial_missionaries=3, initial_cannibals=3, boat_capacity=2)
-    print(f"Winning State: {winning_state}, Valid: {winning_state.is_valid()}, Win: {winning_state.is_win()}")
+    # Test get_valid_next_states from initial state
+    print(f"\n--- Testing get_valid_next_states from: {initial_state_aa} ---")
+    next_possible_states = initial_state_aa.get_valid_next_states()
+    print(f"Found {len(next_possible_states)} valid next states:")
+    for i, state in enumerate(next_possible_states):
+        print(f"State {i+1}: {state} (Valid: {state.is_valid_state()})")
 
-    print("\nTesting losing state (more cannibals on one side):")
-    # M=1, C=2, B=T | M=2, C=1
-    losing_state_left = GameState(1,2, True, boat_capacity=2)
-    print(f"Losing State (left): {losing_state_left}, Valid: {losing_state_left.is_valid()}")
+    # Example of a state that would be structurally invalid (for is_valid_state test)
+    corrupted_state_missing = GameState(N=2, boat_capacity=2)
+    if "a1" in corrupted_state_missing.left_bank:
+      corrupted_state_missing.left_bank.remove("a1")
+    print(f"\nCorrupted State (a1 missing): {corrupted_state_missing}")
+    print(f"Is valid (now includes safety): {corrupted_state_missing.is_valid_state()}")
 
-    # M=2, C=1, B=F | M=1, C=2
-    losing_state_right = GameState(2,1, False, boat_capacity=2)
-    print(f"Losing State (right): {losing_state_right}, Valid: {losing_state_right.is_valid()}")
-
-    # M=1, C=1, B=F | M=2, C=2  (boat on right)
-    # Action: move 2C from L to R
-    # The manual step-by-step example below can be simplified or adapted
-    # to use get_valid_next_states for demonstration if desired.
-    # For now, its direct use of apply_action is still fine as apply_action itself is unchanged.
-
-    # Example of using get_valid_next_states:
-    print(f"\nPossible next states from initial state ({initial_state}):")
-    for i, next_s in enumerate(initial_state.get_valid_next_states()):
-        print(f"Option {i+1}: {next_s}")
-
-    # The long chain of s1, s2... s11 is a specific path test.
-    # It can remain as is, as it tests apply_action directly.
-    # If we wanted to test get_valid_next_states more, we might pick one of its outputs.
-
-    print("\nTesting generate_possible_actions:") # This function remains useful internally
-    print(f"Actions for boat_capacity=1: {generate_possible_actions(1)}")
-    # Expected: [(0,1), (1,0)] or [(1,0),(0,1)]
-    print(f"Actions for boat_capacity=2: {generate_possible_actions(2)}")
-    # Expected: [(0,1), (0,2), (1,0), (1,1), (2,0)] in some order
-    print(f"Actions for boat_capacity=3: {generate_possible_actions(3)}")
+    corrupted_state_duplicate = GameState(N=2, boat_capacity=2)
+    if "a1" in corrupted_state_duplicate.all_individuals and "a1" not in corrupted_state_duplicate.right_bank:
+        corrupted_state_duplicate.right_bank.add("a1")
+    print(f"\nCorrupted State (a1 on both banks if N>=1): {corrupted_state_duplicate}")
+    print(f"Is valid (now includes safety): {corrupted_state_duplicate.is_valid_state()}")
