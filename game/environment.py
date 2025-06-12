@@ -9,8 +9,8 @@ class GameState:
         self.boat_capacity = boat_capacity
         self.boat_on_left = boat_on_left
 
-        self.actors = {f"a{i+1}" for i in range(N)}
-        self.agents = {f"A{i+1}" for i in range(N)}
+        self.actors = {f"a_{i+1}" for i in range(N)}
+        self.agents = {f"A_{i+1}" for i in range(N)}
         self.all_individuals = self.actors.union(self.agents)
 
         if left_bank_individuals is None and right_bank_individuals is None:
@@ -44,7 +44,7 @@ class GameState:
             return True
 
         for actor_id in actors_in_group: # e.g., "a1"
-            own_agent_id = "A" + actor_id[1:] # e.g., "A1"
+            own_agent_id = "A_" + actor_id[2:] # e.g., "A_1"
             if own_agent_id not in agents_in_group: # Actor's own agent is NOT present
                 # Check if any *other* agent is present
                 for other_agent_id in agents_in_group:
@@ -97,8 +97,24 @@ class GameState:
     def __str__(self):
         left_sorted = sorted(list(self.left_bank))
         right_sorted = sorted(list(self.right_bank))
-        boat_pos_str = " L <--B-- R " if self.boat_on_left else " L --B--> R "
-        return f"Left: {left_sorted} {boat_pos_str} Right: {right_sorted} (N={self.N}, K={self.boat_capacity})"
+
+        left_bank_str = str(left_sorted) if left_sorted else "[]"
+        right_bank_str = str(right_sorted) if right_sorted else "[]"
+
+        if self.boat_on_left:
+            # Boat is on the Left bank, ready to move Right (L -> R)
+            boat_str = "---B--->"
+            # Position the boat graphic towards the left side of the gap
+            boat_line = f"  {boat_str}            "
+        else:
+            # Boat is on the Right bank, ready to move Left (R -> L)
+            boat_str = "<---B---"
+            # Position the boat graphic towards the right side of the gap
+            boat_line = f"            {boat_str}  "
+
+        return (f"Left Bank:  {left_bank_str}\n"
+                f"{boat_line}\n"
+                f"Right Bank: {right_bank_str}")
 
     def get_valid_next_states(self) -> list['GameState']:
         """
@@ -146,32 +162,38 @@ if __name__ == '__main__':
 
     # Initial state for N=2, K=2
     initial_state_aa = GameState(N=2, boat_capacity=2)
-    print(f"\nInitial State (N=2, K=2): {initial_state_aa}")
+    print(f"\nInitial State (N={initial_state_aa.N}, K={initial_state_aa.boat_capacity}):\n{initial_state_aa}")
     print(f"Is valid: {initial_state_aa.is_valid_state()}")
     print(f"Is win: {initial_state_aa.is_win()}")
 
     # Manually construct a winning state for N=2, K=2
     win_state_aa = GameState(N=2, boat_capacity=2, boat_on_left=False)
-    print(f"\nConstructed Winning State (N=2, K=2): {win_state_aa}")
+    print(f"\nConstructed Winning State (N={win_state_aa.N}, K={win_state_aa.boat_capacity}):\n{win_state_aa}")
     print(f"Is valid: {win_state_aa.is_valid_state()}")
     print(f"Is win: {win_state_aa.is_win()}")
 
     # Test get_valid_next_states from initial state
-    print(f"\n--- Testing get_valid_next_states from: {initial_state_aa} ---")
+    # print(f"\n--- Testing get_valid_next_states from: {initial_state_aa} ---")
+    # The initial state string itself will be printed above, so this specific line might be verbose.
+    # We'll still print the next states.
+    print(f"\n--- Testing get_valid_next_states from initial N={initial_state_aa.N}, K={initial_state_aa.boat_capacity} state ---")
     next_possible_states = initial_state_aa.get_valid_next_states()
     print(f"Found {len(next_possible_states)} valid next states:")
     for i, state in enumerate(next_possible_states):
-        print(f"State {i+1}: {state} (Valid: {state.is_valid_state()})")
+        print(f"State {i+1} (Valid: {state.is_valid_state()}):\n{state}")
 
     # Example of a state that would be structurally invalid (for is_valid_state test)
     corrupted_state_missing = GameState(N=2, boat_capacity=2)
-    if "a1" in corrupted_state_missing.left_bank:
-      corrupted_state_missing.left_bank.remove("a1")
-    print(f"\nCorrupted State (a1 missing): {corrupted_state_missing}")
+    if "a_1" in corrupted_state_missing.left_bank: # Adjusted for new ID format
+      corrupted_state_missing.left_bank.remove("a_1")
+    print(f"\nCorrupted State ('a_1' missing, N={corrupted_state_missing.N}, K={corrupted_state_missing.boat_capacity}):\n{corrupted_state_missing}")
     print(f"Is valid (now includes safety): {corrupted_state_missing.is_valid_state()}")
 
     corrupted_state_duplicate = GameState(N=2, boat_capacity=2)
-    if "a1" in corrupted_state_duplicate.all_individuals and "a1" not in corrupted_state_duplicate.right_bank:
-        corrupted_state_duplicate.right_bank.add("a1")
-    print(f"\nCorrupted State (a1 on both banks if N>=1): {corrupted_state_duplicate}")
+    # Ensure 'a_1' is in all_individuals and not on right_bank before adding
+    if "a_1" in corrupted_state_duplicate.all_individuals and \
+       "a_1" in corrupted_state_duplicate.left_bank and \
+       "a_1" not in corrupted_state_duplicate.right_bank:
+        corrupted_state_duplicate.right_bank.add("a_1") # This makes 'a_1' on both banks
+    print(f"\nCorrupted State ('a_1' on both banks if N>=1, N={corrupted_state_duplicate.N}, K={corrupted_state_duplicate.boat_capacity}):\n{corrupted_state_duplicate}")
     print(f"Is valid (now includes safety): {corrupted_state_duplicate.is_valid_state()}")
