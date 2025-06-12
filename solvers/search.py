@@ -105,20 +105,26 @@ if __name__ == '__main__':
     bfs_solution_n2_k2 = bfs_solve(initial_state_n2_k2)
     if bfs_solution_n2_k2:
         print(f"BFS Solution Found for N=2, K=2 ({len(bfs_solution_n2_k2)-1} moves):")
-        # for i, state in enumerate(bfs_solution_n2_k2):
-        #     print(f"Step {i}: {state}")
+
+        print("\nBFS Solution Path (N=2, K=2):")
+        for i, state in enumerate(bfs_solution_n2_k2):
+            print(f"Step {i}:")
+            print(state) # GameState.__str__ will be used here
+            if i < len(bfs_solution_n2_k2) - 1:
+                print("----------") # Separator line
 
         formatted_bfs_moves = format_actor_agent_path(bfs_solution_n2_k2)
-        print(f"Formatted BFS Moves: {formatted_bfs_moves}")
+        print(f"\nFormatted BFS Moves: {formatted_bfs_moves}") # Added newline for spacing
         # Expected paper example: [["A_2", "a_2"], ["A_2"], ["A_1", "A_2"], ["A_1"], ["A_1", "a_1"]]
         # My sorting will be alphabetical: e.g., ["A2", "a2"] or ["A1", "A2"] or ["A1", "a1"]
         # The paper uses _ my code uses no underscore. Let's adapt expected to my format.
+        # Updated: Now our code also uses underscores.
         expected_moves_n2_k2_paper_adapted = [
-            sorted(["A2", "a2"]), # (a2,A2)R
-            sorted(["A2"]),       # (A2)L
-            sorted(["A1", "A2"]), # (A1,A2)R
-            sorted(["A1"]),       # (A1)L
-            sorted(["A1", "a1"])  # (a1,A1)R
+            sorted(["A_2", "a_2"]), # (a_2,A_2)R
+            sorted(["A_2"]),       # (A_2)L
+            sorted(["A_1", "A_2"]), # (A_1,A_2)R
+            sorted(["A_1"]),       # (A_1)L
+            sorted(["A_1", "a_1"])  # (a_1,A_1)R
         ]
         # Note: The exact set of individuals might differ if multiple paths of same length exist.
         # The key is the length for BFS.
