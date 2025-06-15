@@ -1,0 +1,1 @@
+from .heuristic import solve_k4_n_greater_equal_6_heuristic
